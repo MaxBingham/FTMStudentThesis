@@ -1,0 +1,476 @@
+
+
+
+\chapter{Methodology}
+\label{ch:methodology}
+This chapter presents the methodological framework used for fault generation and injection, with a focus on the systematic modeling, validation, and analysis of fog-induced disturbances in LiDAR sensor data and their effect on the KISS-ICP localization algorithm.
+Based on the physical foundations established in Chapter 2, probabilistic fault models for both fog and rain have been developed. However, within the scope of this thesis, only the fog model has been fully implemented, validated, and evaluated with respect to localization. The rain model is presented here as a methodological contribution and foundation for future work, but all validation and localization experiments refer exclusively to the fog simulation.
+
+\section{Overview} 
+Figure 1 shows the validation, while Figure 2 shows the localization pipeline used throughout this thesis. The key objective of the Validation pipeline is to assess the accuracy of the presented point cloud modification module by comparing the modification to real-world data measured with the EDGAR. Quantifying the accuracy of the fault injector module allows this thesis to make deterministic statements about the localization performance under foggy conditions. This thesis then aims to evaluate different fog severities and quantify localization drift associated with the fog. Relative position error and absolute position error are the error metrics used, which allow this thesis to make statements about possible effects on downstream algorithms that rely on localization \cite{goelles_fault_2020}. %%CHECK THIS 
+
+This thesis will therefore have two seperate pipelines. 
+On to validate the point cloud modification accuracy and another to evaluate the effect of point cloud modification on the localization. 
+This thesis will use the KITTI dataset as a reference for clear weather. It is a widely used benchmark in autonomous driving research and provides high-quality LiDAR datasets recorded by the Karlsruhe Institue of Technology under good environmental conditions \cite{noauthor_kitti_nodate}. Its extensive adoption in prior work makes it a suitable baseline for controlled degradation studies and ensures comparability across different literature and research.
+
+Starting with clear-weather KITTI scans, artificial faults are injected using the proposed weather-degradation models. These aim to modify existing point clouds based on probabilistic fault mechanisms and to accurately represent synthetic weather measurements under foggy or rainy conditions. The output of this step is then a distorted version of the original KITTI LiDAR scan with the same underlying scenes as the original. 
+
+Once the degraded point cloud has been created, its effect on localization and at the point cloud level will be analyzed. 
+
+Firstly, a point cloud–level analysis is performed by comparing simulated scans with real LiDAR recordings during adverse weather. 
+These real recordings serve as a reference to validate whether the simulated degradation produces realistic geometric and statistical characteristics. 
+Metrics such as point-count deviation, geometric similarity measures, and range-error statistics quantify the distortion introduced by the fault models. 
+This comparison allows the validation of the fault injection models independently of any downstream algorithmic assumptions.  %%%%FIND THE RELEVANT PAPER TO THIS
+
+Secondly, the distorted point clouds are passed to a localization pipeline based on KISS-ICP \cite{vizzo_kiss-icp_2023}. 
+Scan-matching-based localization algorithms, such as KISS-ICP, serve as benchmarking tools and are therefore quite robust against distortion. For that reason, any distortion that causes deterioration on this algorithm, will almost certainly create a drift in other algorithms. 
+The resulting estimated trajectories are subsequently evaluated using the EVO framework \cite{grupp_michaelgruppevo_2026}, which provides established metrics for trajectory comparison, including absolute and relative pose errors.
+
+By combining point cloud–level metrics with localization-level performance indicators, the proposed evaluation pipeline enables a comprehensive assessment of the simulated weather faults. 
+While point cloud analysis validates the realism of the degradation model, the localization evaluation quantifies its effect on a representative downstream task. 
+This separation ensures that the fault models are not only geometrically plausible but also relevant in terms of their impact on autonomous vehicle localization performance.
+
+%%%VALIDATION 
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    block/.style={draw, rectangle, minimum height=1.2cm, minimum width=2.8cm, align=center, font=\small},
+    bigblock/.style={draw, rectangle, minimum height=4cm, minimum width=3.8cm, align=center, fill=gray!10, font=\small},
+    arr/.style={-{Stealth[length=3mm]}, thick},
+    lbl/.style={font=\small, align=center}
+]
+
+% --- Main blocks ---
+\node[bigblock] (val) at (7, 0) {Validation\\[6pt]$\triangleright$ Comparison};
+
+% Top path anchor and bottom path anchor on the validation block
+\coordinate (val-top) at (val.west |- {$(val.north west)!0.3!(val.south west)$});
+\coordinate (val-bot) at (val.west |- {$(val.north west)!0.7!(val.south west)$});
+
+% Fog injector aligned with top entry
+\node[block, left=3.5cm of val-top] (fog) {Fog\\Injector};
+
+% --- Top path ---
+\coordinate (start1) at ([xshift=-2.5cm]fog.west);
+
+% Arrow: clean recorded points --> Fog Injector
+\draw[arr] (start1) -- node[above, lbl] {Clean recorded\\point clouds} (fog.west);
+
+% Arrow: Fog Injector --> Validation (top entry)
+\draw[arr] (fog.east) -- node[above, lbl] {Synthetically distorted\\point clouds} (val-top);
+
+% --- Bottom path ---
+\coordinate (start2) at (start1 |- val-bot);
+
+% Arrow: Real fog measurement --> Validation (bottom entry)
+\draw[arr] (start2) -- node[above, lbl] {Real fog measurements} (val-bot);
+
+% --- Output ---
+\draw[arr] (val.east) -- node[above, lbl] {Validated\\Fog Injector} ++(3.5cm, 0);
+
+\end{tikzpicture}
+\caption{Validation pipeline: comparison of synthetically generated foggy point clouds to real world fog recordings.}
+\label{fig:validation}
+\end{figure}
+
+%%%%LOCALIZATION 
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    block/.style={draw, rectangle, minimum height=1.2cm, minimum width=2.8cm, align=center, font=\small},
+    bigblock/.style={draw, rectangle, minimum height=4cm, minimum width=3.8cm, align=center, fill=gray!10, font=\small},
+    arr/.style={-{Stealth[length=3mm]}, thick},
+    lbl/.style={font=\small, align=center}
+]
+
+% --- Main blocks ---
+\node[bigblock] (kiss) at (7, 0) {KISS-ICP\\[6pt]Odometry};
+
+% Top path anchor and bottom path anchor on the KISS-ICP block
+\coordinate (kiss-top) at (kiss.west |- {$(kiss.north west)!0.3!(kiss.south west)$});
+\coordinate (kiss-bot) at (kiss.west |- {$(kiss.north west)!0.7!(kiss.south west)$});
+
+% Fog injector aligned with top entry
+\node[block, left=3.5cm of kiss-top] (fog) {Fog\\Injector};
+
+% --- Top path ---
+\coordinate (start1) at ([xshift=-2.5cm]fog.west);
+
+% Arrow: KITTI --> Fog Injector
+\draw[arr] (start1) -- node[above, lbl] {KITTI} (fog.west);
+
+% Arrow: Fog Injector --> KISS-ICP (top entry)
+\draw[arr] (fog.east) -- node[above, lbl] {KITTI distorted} (kiss-top);
+
+% --- Bottom path ---
+\coordinate (start2) at (start1 |- kiss-bot);
+
+% Arrow: KITTI (clean) --> KISS-ICP (bottom entry)
+\draw[arr] (start2) -- node[above, lbl] {KITTI} (kiss-bot);
+
+% --- Output ---
+\draw[arr] (kiss.east) -- node[above, lbl] {Localization\\parameters} ++(3.5cm, 0);
+
+\end{tikzpicture}
+\caption{Odometry evaluation pipeline: both clean KITTI data and fog-distorted KITTI data are fed into KISS-ICP odometry to compare localization parameters.}
+\label{fig:odometry}
+\end{figure}
+
+\section{Fault Model Design}
+
+In this section the mathematical design of our fault models will be explained, based on the physical effects discussed in the previous chapter. The proposed rain modelling method is novel, as there is no previous probabilistic fault model for rain that modifies a point cloud rather than generating a new one. Therefore, this thesis will follow a data-driven approach.  
+
+\subsection{Fog Model}
+As highlighted in Chapter 2, the effects that need to be modeled in the point cloud include point deletion due to signal attenuation, backscattering due to droplets reflecting, and intensity drop-off. 
+
+The localization algorithm used to evaluate the effects of the modified point clouds does not accept intensity modifications, so that parameter will be ignored for this thesis. Instead, a correlation between intensity drop off and increased range uncertainty, resulting in slight geometric distortions, will be used. 
+
+For the fog model, the following probabilities were set, highlighting the exponential increase in modified points as the distance the laser beam has traveled increases. %%%FIND SOURCE 
+As this thesis aims to implement a probabilistic method to quantify uncertainty, this approach is based on Teufel et al.
+
+Equation ~(3.1) describes the probability a point is modified. It increases exponentially with the distance the point is away from the LiDAR's origin and uses scaling parameters. These parameters are then adjusted to previously recorded datasets using the Chamfer distance. More on that later. 
+
+\begin{equation}
+    p_{modify}(d) = 1- e^{-d\epsilon} 
+\end{equation}
+
+In this equation, d is the distance, and epsilon is a scaling parameter \cite{teufel_simulating_2022}. 
+
+\subsubsection{Modelling of deletion}
+If a point is then chosen for modification, it is either deleted or backscattered. In the case of the point being backscattered, its new position, which is closer to the LiDAR sensor, is calculated, and it is moved there. As seen in Chapter 2, this accurately represents the behaviour of LiDAR sensors in adverse weather. 
+
+The probability of a point being deleted is represented by Equation ~(3.2).
+
+\begin{equation}
+    p_{delete}(V)=ae^{bV} + 1 
+\end{equation}
+
+In this equation, both a and b are negative scaling parameters. $V$ is the meteorological visibility. It can be seen that the probability for deletion rises as the visibility decreases \cite{teufel_simulating_2022}. 
+
+\subsubsection{Modelling of Backscattering}
+If a point was chosen to be modified, but wasnt deleted, it is moved. This probability of a point being backscattered is highlighted in Equation ~(3.3). 
+
+\begin{equation}
+    p(backscatter | modified) =  1- p_{delete}(V)
+\end{equation}
+
+Therefore, the probability of a point being backscattered also depends on the visibility V; it increases dramatically as V decreases. 
+If a point is selected for backscattering, it is then moved. The displacement of backscattered points it modeled probabilistically using an exponential distribution. IIn this equation, $X$ is denoted as a non-negative random variable describing the distance between the LiDAR Sensor and the backscattered reflection point along the original laser beam.The probability density function is defined in Equation ~(3.4) \cite{teufel_simulating_2022}.
+
+\begin{equation}
+    f(x) = \dfrac{1}{\gamma}exp(-\dfrac{1}{\gamma}x)
+\end{equation}
+
+In Equation 3.4. $\gamma$ is an empirically determined parameter calculated using the Chamfer distance, which should control the expected backscatter distance. This formulation is physically accurate, as reflections close to the sensor are significantly more likely as reflections further away from the sensor. To ensure no point is set inside the sensor itself, a minimum distance is added to the new position, highlighted in Equation~ ~(3.5) \cite{teufel_simulating_2022}. Furthermore, the backscattered distance has to lie closer to the sensor than the original distance. 
+
+\begin{equation}
+    d_{backscatter} = min(d_{min} + f(x), d_{orig}) 
+\end{equation}
+
+This formulation ensures that the backscattered points remain physically plausible. Meaning they lie along the original measurement ray \cite{find source highlighting this} and are shifted towards the sensor \cite{find source}.
+
+Teufel et al. \cite{teufel_simulating_2022} proposes intensity modification as an additional distortion mechanism for modeling adverse weather effects in LiDAR point clouds. However, as discussed in a later chapter, the KISS-ICP localization algorithm used in this thesis does not process intensity information. Leaving intensity-related effects out entirely would therefore be unphysical, as signal attenuation, even if the point isn't deleted, is a fundamental consequence of atmospheric scattering \cite{bijelic_seeing_2019}. To address this limitation, this thesis introduces a range bias that distorts both remaining and backscattered points. This geometric distortion should act as a translation of intensity effects into a format that the KISS-ICP algorithm can accept and consequently making the distortion model as accurate as possible. 
+
+In the formulation by Teufel et al. \cite{teufel_simulating_2022}, the intensity of backscattered points is set to a random value between 0\% and 32\%.
+
+As the intensity values cant be processed, this thesis adopts range bias as a fault indicator instead of intenstiy. This choice is physically motivated by the findings of Haider et al. \cite{haider_methodology_2023}, who performed extensive experiments on this topic. The findings indicate that signal attenuation in dense fog degrades the signal-to-noise ratio and shifts the detected return peak, resulting in a distance error $d_{error}$ that increases as visibility decreases - similar to the intensity. Modelling this error as a function of visibility captures the geometric distortion observed in real adverse-weather LiDAR scans while remaining compatible with the KISS ICP algorithm. 
+\subsubsection{Intensity modification}
+Another important parameter critical to a LiDAR's accuracy is the intensity of a returned LiDAR beam. If a laser beam traverses the scattering medium, the intensity is attenuated. This is due to scattering and absorption \cite{kilic_lidar_2021}. For fog, this can be calculated using the Beer-Lambert Law as seen in Equation ~(3.6). Every point that has not been modified will be attenuated according to it.
+
+\begin{equation}
+    I(d) = I_0e^{-\gamma d)}. 
+\end{equation}
+
+In Equation ~(3.6) $I_0$ denotes the emitted intensity, d the traverse distance, and $\gamma$ the extinction coefficient. The latter is defined as 
+
+\begin{equation}
+     \gamma = \dfrac{-ln(0.05)}{V}
+\end{equation}
+
+with V representing the meteorological visibility \cite {teufel_simulating_2022}. 
+
+
+\subsubsection{Modelling Weather-induced Range Bias}
+
+To model the intensity degradation as a geometric consequence, we calculate the signal attenuation factor $A(d)$ using the Beer-Lambert Law as defined in \cite[p. 22]{teufel_simulating_2022} and \cite[p. 11]{haider_methodology_2023}:
+
+\begin{equation} 
+A(d) = e^{-2\gamma d}
+\end{equation}
+
+where $\gamma$ is the extinction coefficient from Equation ~(3.7) \cite{teufel_enhancing_2023}. The distance is doubled to account for the round-trip travel of the active LiDAR pulse \cite[p 11]{haider_methodology_2023}.
+
+The mean range bias $\mu_{bias}$ is defined as a function of the signal loss. As the attenuation increases (and intensity decreases), the bias grows toward a maximum threshold $d_{max}$:
+
+\begin{equation} 
+\mu_{bias}(d, V) = d_{max} \cdot (1 - A(d)) 
+\end{equation}
+The final adverse-weather point position is calculated by applying a stochastic displacement along the original beam unit vector $u$
+\begin{equation}
+\vec{P}{adv} = \vec{P}{clear} + \left( \mathcal{N}(\mu_{bias}, \sigma_{bias}) \right) \cdot \hat{u}
+\end{equation}
+
+where $\mathcal{N}$ represents a normal distribution of ranging jitter and $\sigma_{bias}$ is the standard deviation of the ranging noise.
+
+%%%%Find a way to figure out the standard deviation here %%%%%%
+
+\subsubsection{Parameter Calibration}
+This fog model's parameters such as $\epsilon, a, b, \gamma$ were obtained by modifying clear point clouds until they best matched point distorted point clouds. For this purpose, the "DENSE" dataset, which was recorded in the CEREMA fog chamber, was used as a reference for distorted point clouds \cite{bijelic_seeing_2019} \cite{teufel_simulating_2022}. 
+
+The comparison was then performed using the Hausdorff Distance from Equation ~(3.11) and minimizing it. The Hausdorff Distance was developed for a more general comparison between two point clouds $P$ and $Q$ \cite{shahbeigi_novel_2024}. The Chamfer Distance can also be used as a loss function for point cloud accuracy and could therfore become useful for validation as well \cite{fan_point_2017}. It is a good metric compared to others, such as the earth movers distance or the Hausdorff Distance, as it is bounded \cite{fan_point_2017}. This means the distance is always finite and is capped at the maximum possible distance in the point cloud. 
+
+\begin{equation}
+\mathrm{CD}(P, Q)
+=
+\sum_{p \in P} \min_{q \in Q} \lVert p - q \rVert_2^2
++
+\sum_{q \in Q} \min_{p \in P} \lVert q - p \rVert_2^2
+\end{equation}
+
+The results from the Chamfer Distance for the parameters listed above can be found in Table ~(3.1) \cite{teufel_simulating_2022}. 
+
+\begin{table}[h]
+\centering
+\caption{Fitted parameters for the Chamfer distance metric}
+\label{tab:chamfer_parameters}
+
+\renewcommand{\arraystretch}{1.4}
+
+\begin{tabular}{@{} l l @{}}
+\hline
+\textbf{Parameter} & \textbf{Chamfer Distance} \\
+\hline
+Point modification probability $\epsilon$
+& $0.23 \cdot e^{-0.0082 V}$ \\
+
+Distance distribution parameter $\lambda$
+& $-0.00600 \cdot V + 2.31$ \\
+
+Deletion probability parameters $(a, b)$
+& $(-0.70,\,-0.024)$ \\
+\hline
+\end{tabular}
+\end{table}
+
+For the additional range bias degradation mechanism, this paper chose to calibrate the parameters based on empirical measurements conducted by Haider et al. \cite{haider_methodology_2023}.
+For fog, the distance error is relatively small due to the minute size of fog droplets (0.1--20 $\mu$m), and is capped at $d_{max} = 2cm$ \cite[p. 21]{haider_methodology_2023}.
+In contrast, the larger size of raindrops causes significantly more ray misalignment, resulting in a higher maximum error of $d_{max}=0.049m (4.9cm)$ for heavy rain rates \cite[p. 18, Table 5]{haider_methodology_2023}. 
+
+%%%POSSIBLY USING THE DISTANCE METRICS + SPECIAL FINE TUNING%%%%%
+
+\subsection{Rain Model}
+
+As already mentioned in Chapter 2, this thesis will introduce a novel approach to rain modelling. Unlike most existing methods, which rely on computationally intensive physical simulations to generate new point clouds via optical scattering techniques, the approach presented here focuses on directly modifying existing point clouds using a probabilistic approach. 
+
+While rain and fog share similar distortion mechanisms, such as point deletion, backscattering, intensity attenuation, and range bias, their relative impacts differ significantly. 
+In fog, the high density of small droplets leads to a high rate of point deletion. In contrast, rain primarily introduces range bias, geometric distortion, and backscattering effects, while point deletion plays a secondary role \cite{haider_methodology_2023}.
+
+Based on this observation, this thesis proposes using the same mechanisms and probabilities described in the fog simulation and weighting them according to their respective impacts on the point cloud observed in rain data. 
+
+What we observed is that rain doesnt delete as many points as fog. 
+
+
+%%%Depict IDEA --> Deletion, Backscatter, Itensity%%%%%
+
+
+\section{Validation}
+
+As already mentioned in the introduction, the validation will only validate the fog simulation. 
+\subsection{Objective and Scope}
+
+\subsection{Reference Data}
+
+The data used for the validation of the fog model consists of real-world LiDAR recordings captured in Garching, Germany, under both clear and foggy conditions. Both datasets were recorded along the same route using an identical sensor setup to ensure comparability. However, inherent variability between recording sessions, such as differences in dynamic objects (e.g., parked vehicles, pedestrians), minor deviations in the driven trajectory, and varying vehicle speed, introduces discrepancies that are unrelated to the weather conditions themselves. These factors represent a source of uncertainty in the validation and will be considered when interpreting the results.
+
+The real-world data used for validation was recorded using the EDGAR research vehicle of the FTM chair at TUM. The vehicle employs a ROS2-based data acquisition system that captures all sensor streams, including LiDAR, camera, and vehicle dynamics, into ROS2 bag files. These are stored in the .mcap format, which serves as the underlying serialization format for ROS2 bag recordings.
+
+The EDGAR platform is equipped with four LiDAR sensors whose outputs are fused into a single concatenated point cloud via sensor fusion. For the purposes of this thesis, only this concatenated LiDAR point cloud topic is extracted from the ROS2 bag. All other topics are discarded.
+
+The extracted point cloud messages are then converted into NumPy arrays, where each point is represented by its spatial coordinates, rotation, and intensity information. %%%Check the exact bits
+This format serves as the common data representation for all subsequent processing steps, including the application of comparison metrics during validation.
+
+Prior to any comparison or fault injection, a preprocessing step is applied to the extracted point clouds. This aims to align them as best as possible. 
+It should be noted that this data preparation workflow applies specifically to the real world recordings. The KITTI dataset used for the localization experiments is provided in the KITTI format and enters the localization pipeline directly, without requiring ROS2-based extraction. 
+
+\subsubsection{Preprocessing}
+
+The ROS2 bags don't contain any GNSS or odometry ground truth data. Therefore temporal and spatial alignment between the clear-weather and foggy seqeunces was performed manually. Both recordings were visualized using Lichtblick. Then corresponding start and end points were identified based on static landmarks such as street signs and building facades. The sequences were then trimmed to equal length to ensure spatial coverage of the same route segment. 
+
+To mitigate the effect of residual alignment errors, the validaiton primarily relies on sequence-level statistical comparisons rather than frame-to-frame
+matching. This approach aims to reduce the sensitivity to minor spatial offsets between corresponding scans. 
+
+It is acknowledged that this manual alignment introduces a degree of subjectivity and spatial uncertainty. 
+%%%Any way to address this uncertainty????? 
+
+
+\subsubsection{Selected Sequences}
+
+In total, two different sequences were matched using the above preprocessing method. 
+Most of the recordings where both clean reference data and foggy data are available were recorded on highways. So in order to minimize the bias towards casued by highways recordings, the second recording also covers a highways entrance. 
+
+The data was recorded on highways near Garching, Munich. The exact routes can be seen in the Google Maps screenshots in Figure ~(3.3) and Figure ~(3.4).
+
+\subsection{Pipeline Design}
+
+
+\subsection{Validation Metrics}
+
+\section{Localization Evaluation}
+Section 3.3 described the methodology for validating the proposed fog model at the point cloud level. This section focuses on the second objective of this thesis: evaluating the robustness of the KISS-ICP odometry algorithm under simulated foggy conditions across different driving environments.
+
+ICP-based algorithms are known to be sensitive to their initial alignment estimate and are consequently prone to increased drift or failure in environments lacking abundant three-dimensional structure, such as highways or open roads. %%%%CITE https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=8461224#page=7.36 .
+Prior work has independently demonstrated that adverse weather conditions degrade LiDAR point cloud quality \cite{bijelic_benchmark_2018, haider_methodology_2023, teufel_simulating_2022} and that geometrically degenerate environments increase the drift of ICP-based odometry algorithms. %%%Review literature 
+
+However, to my knowledge, no existing study has systematically investigated the effect of weather-induced point cloud degradation on LiDAR-based localization algorithms, such as KISS-ICP. Developing an in depth understanding of this can be advantageous to autonomous driving, as it is valuable to know under which conditions the localization could degrade and under which it is safe to continue autonomous operation. 
+
+To investigate this, the KISS-ICP algorithm is run on multiple KITTI Odometry sequences, representing various driving scenarios. The previously validated fog model is applied to these sequences at different severity levels. By comparing localization performance across both severity of the fog conditions and driving scenario, this thesis aims to identify and quantify correlations between localization performance, weather effect, and driving scenario. 
+
+\subsection{KISS-ICP Odometry algorithm}
+
+The keep it small and simple iterative closest point (KISS-ICP) algorithm is a LiDAR odometry algorithm that incrementally estimates the trajectory of a moving sensor by sequentially registering point clouds. It is designed to be minimal and as robust as possible, making it usable for just about every setup, regardless of the specific sensor setup or motion profile. It has only seven parameters, which are kept constant across datasets and platforms \cite{vizzo_kiss-icp_2023}. It uses classical point-to-point ICP as its core registration method and operates quicker than the sensor frame rate \cite{vizzo_kiss-icp_2023}.
+
+%% AI Generated - Review
+Each new scan is processed in four steps and obtains a gloabl pose estimate $\mathbf{T}_t \in SE(3)$ at time $t$ \cite{vizzo_kiss-icp_2023}:
+
+\begin{enumerate}
+    \item \textbf{Motion Prediction and Scan Deskewing.} A constant velocity model is used to predict the robot's motion based on the two previous pose estimates. This prediction serves as the initial guess for the registration and is used to compensate for motion distortion within a single scan. No IMU or wheel odometry is required \cite{vizzo_kiss-icp_2023}.
+    
+    \item \textbf{Point Cloud Subsampling.} The deskewed scan is downsampled using a voxel grid. A double downsampling strategy is applied: first to an intermediate resolution for map updates, then further reduced for the ICP registration. Importantly, only the spatial coordinates $(x, y, z)$ are retained resulting in no intensity, normals, or other per-point attributes are used at any stage of the pipeline \cite{vizzo_kiss-icp_2023}.
+    
+    \item \textbf{Local Map and Correspondence Estimation.} The subsampled scan is registered against a voxel-based local map using frame-to-map matching. An adaptive threshold $\tau_t = 3\sigma_t$ is computed from the history of observed motion deviations, allowing the correspondence search to adapt automatically to the motion profile without manual tuning \cite{vizzo_kiss-icp_2023}.
+    
+    \item \textbf{Alignment Through Robust Optimization.} Point-to-point ICP is performed using a Geman-McClure robust kernel, which downweights outlier correspondences. The kernel scale parameter $\kappa_t$ adapts online based on $\sigma_t$. No maximum iteration count is imposed — convergence is determined solely by the magnitude of the applied correction falling below a threshold $\gamma$ \cite{vizzo_kiss-icp_2023}.
+\end{enumerate}
+
+%% Until here
+Specifically, point cloud subsampling is highly relevant to the proposed fog model. Only spatial coordinates are considered. That means the KISS-ICP algorithm only sees the point deletion, backscattering, and any geometric distortion. It does not see the intensity. 
+
+As KISS-ICP is a well established benchmark, this thesis still decided to use it as an evaluation tool for the localization performance. So in order to use the KISS-ICP algorithm with the fog being as accurate as possible, there are two options. Firstly, it is possible to correlate the intensity degradation to a geometric error. The idea here would be to create a noise term representing the intensity degradation as accurately as possible. Then the new, distorted point cloud would be described as shown in Equation ~(3.10). 
+
+However, it has come to the authors attention that previous work utilizing the kiss icp algorithm has discarded the intensity entirely. Since the KISS-ICP algorithm is just one tool to evaluate the odometry, this thesis will also simply remove the intensity for the localization evaluation with KISS-ICP. 
+
+
+%%%% Continue here: 
+%%%% Two options --> Cut intenstiy or develop workaround. Decided to cut intensity and not utilize the geometric distoriton. This should keep the evaluation conservative. They represent a lower bound. Kiss icp is very robust AND we are leaving the intensity out. If degradation of the performance can still be obsevred it will be observed more severely in different algorithms almost certainly. This means the claims made about the effect of fog on localiztion are purely based on geometric distortion. Outliers such as backscattering is processed by kiss icp anyways. Deletion primary method of distortion%%%%%%
+
+
+\subsection{KITTI Sequences}
+
+For this thesis, it is important that both ground trouth as well as real world scans exist. Without this match, it is difficult to evaluate the performance of the localization. 
+
+For that resons, this thesis will use KITTI sequences $ 00 - 10$ for evaluation. These sequences contain both ground truth and real world scans allowing for a good evaluation.
+
+It is important to evaluate a variety of sequences, recorded in different settings to make meaningful statements about performance and also be able to link performance degradation to the surroundings. 
+
+
+%% Kitti Sequences 
+
+\begin{table}[h]
+\centering
+\caption{Properties of KITTI Odometry Sequences 00--10~\cite{noauthor_kitti_nodate}}
+\label{tab:kitti_sequences}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{cccccr}
+\toprule
+\textbf{Seq.} & \textbf{Raw Drive} & \textbf{Frames} & \textbf{Length} & \textbf{Environment} & \textbf{Avg. Speed} \\
+\midrule
+00 & 2011\_10\_03\_0027 & 4541 & 3.7\,km & Urban/Suburban & 30\,km/h \\
+01 & 2011\_10\_03\_0042 & 1101 & 2.5\,km & Highway         & 80\,km/h \\
+02 & 2011\_10\_03\_0034 & 4661 & 5.1\,km & Urban/Suburban  & 30\,km/h \\
+03 & 2011\_09\_26\_0067 &  801 & 0.6\,km & Rural           & 30\,km/h \\
+04 & 2011\_09\_30\_0016 &  271 & 0.4\,km & Rural           & 50\,km/h \\
+05 & 2011\_09\_30\_0018 & 2761 & 2.2\,km & Urban           & 30\,km/h \\
+06 & 2011\_09\_30\_0020 & 1101 & 1.2\,km & Urban           & 30\,km/h \\
+07 & 2011\_09\_30\_0027 & 1101 & 0.7\,km & Urban           & 25\,km/h \\
+08 & 2011\_09\_30\_0028 & 4071 & 3.2\,km & Urban/Suburban  & 30\,km/h \\
+09 & 2011\_09\_30\_0033 & 1591 & 1.7\,km & Urban/Suburban  & 30\,km/h \\
+10 & 2011\_09\_30\_0034 & 1201 & 0.9\,km & Urban/Suburban  & 30\,km/h \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+%%%%Tuna et al
+Particulary the highway and suburban sequences are of interest, as ICP can degrade and become unreliable in geometrically ill-conditioned enviornments such as highways are monotonous suburban roads %%CITE TUNA 2024. 
+In these feature-scarce scenarios, the lack of distinctive geometric structures limits the ability of point cloud registration to constrain the pose estimate, leading to increased drift %%CITE ZHANG 2016. 
+This effect is amplified under adverse conditions, such as fog, where fog-induced noise and signal attenuation reduce the already limited number of valid correspondances. By evaluating all KITTI sequences 00-10, this thesis aims to analyze this compounding effect across varying envrionmental condition. The results will allow a correlation between scene geometry and weather sensitivity, which will reveal under which circumstances fog poses a critical safety risk, and under whcih it remains a manageable factor, for example in feature-rich urban enviornemnts.  
+
+\subsection{Evaluation Metrics}
+In order to accurately evaluatae the effect on the localization, this thesis will use both the absolute position error (APE), as well as the relative position error (RPE). These are well-established errors used to evaluate localization algorithmsand can be easily computed using the evo library \cite{grupp_michaelgruppevo_2026}. 
+
+The general formula for the APE can be seen in Equation ~(13).
+
+%%APE Formula
+\begin{equation}
+\mathbf{E}_i^{\text{APE}} 
+= 
+\left( \mathbf{T}_i^{\text{gt}} \right)^{-1}
+\mathbf{T}_i^{\text{est}}
+\end{equation}
+
+It is possible to evaluate both translational and rotational errors. As the translational error has a larger effect on localization, this thesis will use it as the primary error for comparing different KITTI sequences. The equation for the translational error of the APE can be seen in Equation ~(14).
+
+%%APE Translation Formula 
+\begin{equation}
+e_i^{\text{APE}} 
+= 
+\left\| 
+\operatorname{trans}\!\left( 
+\mathbf{E}_i^{\text{APE}} 
+\right)
+\right\|_2
+\end{equation}
+
+The APE calculates the absolute pose error, while the RPE calculates the relative pose error. The difference is, that ape compares poses at timestamp i, while rpe compares the poses along the estimated and the reference trajectory, which is based on the delta pose difference. The RPE can be seen in Equation ~(15). 
+
+%%RPE Formula 
+\begin{equation}
+\mathbf{E}_i^{\text{RPE}} 
+=
+\left(
+\left( \mathbf{T}_i^{\text{gt}} \right)^{-1}
+\mathbf{T}_{i+\Delta}^{\text{gt}}
+\right)^{-1}
+\left(
+\left( \mathbf{T}_i^{\text{est}} \right)^{-1}
+\mathbf{T}_{i+\Delta}^{\text{est}}
+\right)
+\end{equation}
+
+Now in order to evaluate the translational error, we need to consider the translational part of $\mathbf{E}_i^{\text{RPE}} $, which is equal to Equation ~(16).
+
+%%Translational RPE
+\begin{equation}
+e_i^{\text{RPE}} 
+=
+\left\|
+\operatorname{trans}\!\left(
+\mathbf{E}_i^{\text{RPE}}
+\right)
+\right\|_2
+\end{equation}
+
+These errors give a good understanding of the stability of the KISS-ICP algorithm. 
+
+\subsection{Experimental Setup \& Design}
+
+\subsubsection{KITTI Dataset}
+
+The experiments conducted in this thesis rely on the KITTI Odometry datasets \cite{noauthor_kitti_nodate}
+, which provides 11 labelled sequences with ground truth trajectories, timestamps and raw LiDAR scans recorded using a Velodyne HDL-64E sensor. Each sequence captures slightly different driving scenarios, ranging from structured urban enviornemnts to rural roads and highway driving, providing a comprehensive basis for evaluating localization performance across various scene geometries. The ground truth trajectories are used as the reference for all error metrics and were obtained directly from  the KITTI benchmark website. 
+
+%% MErge this with the KITTI sequences chapter 3.4.2
+
+\subsubsection{Point Cloud Modification Pipeline}
+
+The core of the pipeline is the KISS-ICP algorithm \cite{vizzo_kiss-icp_2023}, which serves as the localization backend and is loaded into the pipeline as an external dependency. It is used with its default parameter configuration, as one of its key design principles is parameter-free generalization across enviornments and sensor types. This makes KISS-ICP a representative baseline. The KITTI odometry sequences are loaded using the native KITTI dataloader provided by the KISS-ICP repository. 
+
+To evaluate the effect of adverse weather on localization, the probabilistic fault injector module described in Section ~(3.2.1) is integrated into the pipeline. The fault injectory operates directly on the raw point cloud before it is passed passed to KISS-ICP, ensuring the degradation represents a true input-level modification rather than a post-hoc perturbation or a new point cloud generation. 
+
+The pipeline is structured into three layers. First, the fault injector applies the weather modification to each incoming scan. Second, the modified scans are passed to KISS-ICP, which is used as a subprocess and produces the estimated trajectory. Third, the Evo library is called to compare the estimated trajectory against the KITTI ground truht and compute the APE and RPE. 
+
+\subsubsection{Experiment Design}
+
+To systematically quantify the effect of weather on the localization, an automated orchestrator was designed that runs the full pipeline across all seqeunces and intensity levels without manual intervention. The orchestrator iterates over all KITTI sequences 00-10 and sweeps through a range of visibilities for each sequence. For fog the visibility parameter is swept from 30m to 250m in setps of 20m. At 250m the point cloud modification converges toward a minimal degradation, providing a natural upper bound. This is due to KISS-ICP's robust nature. Therfore, the low to mid visibilities are of greater interest. 
+
+For each seqeunce an unmodified baseline run is performed first using the original KITTI scans, establishing the inherent localization performance of KISS-ICP on that specific sequence without any weather effect. The following, degraded runs are then compared against this baseline. This allows the weather-induced error increase to be isolated from sequence dependant difficulty. This is especially important, knowing that geometric variability exists across sequences and performance is likely different, especially at lower visibilities. 
